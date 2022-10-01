@@ -1,0 +1,106 @@
+#! /bin/bash
+
+SBKMKMGR_PATH=$1
+SBKMKMGR_D="^d"
+SBKMKMGR_F="^-"
+SBKMKMGR_D_OR_F="^[d-]"
+SBKMKMGR_DMENULINES=20
+SBKMKMGR_HERE=":here"
+SBKMKMGR_ALL=":all"
+SBKMKMGR_YES=":yes"
+SBKMKMGR_NO=":no"
+SBKMKMGR_OPEN="open"
+SBKMKMGR_CONFIRM_TABS_COUNT=15
+
+sbkmkmgr_show() {
+	ls "$1" -lAF --group-directories-first | grep "$2" | awk '{printf "%s\n", $NF}' | dmenu -p "$3"
+}
+
+sbkmkmgr_confirm() {
+	printf "$SBKMKMGR_NO\n$SBKMKMGR_YES\n" | dmenu -p "$1"
+}
+
+sbkmkmgr_goto() {
+	local path=""
+	while true; do
+	  local d=`sbkmkmgr_show $SBKMKMGR_PATH$path $1 $path`
+		if [ "$d" = "$SBKMKMGR_HERE" ]; then
+			break
+		elif [ -z "$d" ]; then
+			return 5
+		fi
+		path+="$d"
+		[ -f "$SBKMKMGR_PATH$path" ] && break 
+	done
+	echo "$SBKMKMGR_PATH$path"
+}
+
+sbkmkmgr_message() {
+	echo "ok" | dmenu -p "$1"
+}
+
+sbkmkmgr_validate_path() {
+	if [ -d "$1" ]; then
+		sbkmkmgr_message "Group exists with that name, $1"
+		exit 21
+	elif [ -f "$1" ]; then
+		sbkmkmgr_message "URL exists with that name, $1"
+		exit 17
+	fi
+}
+
+sbkmkmgr_input() {
+	dmenu -p "$1" < /dev/null
+}
+
+sbkmkmgr_add_group() {
+	local path=`sbkmkmgr_goto $SBKMKMGR_D`
+	[ -z "$path" ] && exit 22
+	local name=`sbkmkmgr_input "Group Name:"`
+	path+="$name"
+	sbkmkmgr_validate_path "$path"
+	mkdir "$path"
+}
+
+sbkmkmgr_add_url() {
+	local path=`sbkmkmgr_goto $SBKMKMGR_D`
+	[ -z "$path" ] && exit 22
+	local name=`sbkmkmgr_input "Name:"`
+	local url=`sbkmkmgr_input "URL:"`
+	path+="$name"
+	sbkmkmgr_validate_path "$path"
+	printf "$url" > "$path"
+}
+
+sbkmkmgr_open_url() {
+	local url
+	read -r url < "$1"
+	[ -z "$url" ] || chromium "$url"
+}
+
+sbkmkmgr_open_group() {
+	local files=`ls "$1" -lAF | grep "$SBKMKMGR_F"`
+	local count=`echo "$files" | wc -l`
+	[ $count -le 1 ] && [ -z "$files" ] && exit 39
+	if [ $count -ge $SBKMKMGR_CONFIRM_TABS_COUNT ]; then
+		local confirm=`sbkmkmgr_confirm "$1 will open $count tabs"`
+		[ "$confirm" = $SBKMKMGR_NO ] && exit 7
+	fi
+	local names=`echo "$files" | awk -v path="$1" '{printf ""path"%s ", $NF}'`
+	local urls=`awk 'FNR==1{printf "%s ",$0} {nextfile}' $names`
+	chromium $urls
+}
+
+sbkmkmgr_open() {
+	local path=`sbkmkmgr_goto $SBKMKMGR_D_OR_F`
+	[ -f "$path" ] && sbkmkmgr_open_url "$path"
+	[ -d "$path" ] && sbkmkmgr_open_group "$path"
+}
+
+if [ "$2" = "$SBKMKMGR_OPEN" ]; then
+	sbkmkmgr_open
+else
+	CHOICE=`printf "New URL\nNew Group\n" | dmenu -p $SBKMKMGR_PATH`
+	[ "$CHOICE" = "New URL" ] && sbkmkmgr_add_url
+	[ "$CHOICE" = "New Group" ] && sbkmkmgr_add_group
+fi
