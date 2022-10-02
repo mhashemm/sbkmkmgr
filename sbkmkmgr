@@ -14,6 +14,7 @@ SBKMKMGR_COPY_URL=":cp"
 SBKMKMGR_COPY_PATH=":path"
 SBKMKMGR_ADD_URL=":url"
 SBKMKMGR_ADD_GROUP=":grp"
+SBKMKMGR_AUTO=":auto"
 SBKMKMGR_YES=":yes"
 SBKMKMGR_NO=":no"
 SBKMKMGR_CONFIRM_TABS_COUNT=15
@@ -71,8 +72,9 @@ sbkmkmgr_add_group() {
 
 sbkmkmgr_add_url() {
 	local path=`sbkmkmgr_get_path`
-	local name=`sbkmkmgr_input "Name:"`
+	local name=`sbkmkmgr_input "Name (:auto generate from URL):"`
 	local url=`sbkmkmgr_input "URL:"`
+	[ "$name" = "$SBKMKMGR_AUTO" ] && name=`printf "$url" | cut -d'/' -f 3- | cut -d'?' -f 1 | tr '/' '-'`
 	path+="$name"
 	sbkmkmgr_validate "$name" && printf "$url" > "$path" && return 0
 }
