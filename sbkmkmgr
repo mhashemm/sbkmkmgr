@@ -72,7 +72,7 @@ sbkmkmgr_add_group() {
 
 sbkmkmgr_add_url() {
 	local path=`sbkmkmgr_get_path`
-	local name=`sbkmkmgr_input "Name (:auto generate from URL):"`
+	local name=`sbkmkmgr_input "Name ($SBKMKMGR_AUTO generate from URL):"`
 	local url=`sbkmkmgr_input "URL:"`
 	[ "$name" = "$SBKMKMGR_AUTO" ] && name=`printf "$url" | cut -d'/' -f 3- | cut -d'?' -f 1 | tr '/' '-'`
 	path+="$name"
