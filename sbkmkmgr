@@ -1,52 +1,62 @@
 #! /bin/bash
 
-SBKMKMGR_PATH=$1
-SBKMKMGR_D="^d"
-SBKMKMGR_F="^-"
-SBKMKMGR_D_OR_F="^[d-]"
-SBKMKMGR_DMENULINES=20
-SBKMKMGR_HERE=":here"
-SBKMKMGR_ALL=":all"
+SBKMKMGR_ROOT_PATH=$1
+SBKMKMGR_GROUP="^d"
+SBKMKMGR_URL="^-"
+SBKMKMGR_GROUP_OR_URL="^[d-]"
+SBKMKMGR_HERE=":."
+SBKMKMGR_BACK=":<"
+SBKMKMGR_FILTER_GROUP=":fg"
+SBKMKMGR_FILTER_URL=":fu"
+SBKMKMGR_FILTER_DEFAULT=":fd"
+SBKMKMGR_REMOVE=":rm"
+SBKMKMGR_COPY_URL=":cp"
+SBKMKMGR_COPY_PATH=":path"
+SBKMKMGR_ADD_URL=":url"
+SBKMKMGR_ADD_GROUP=":grp"
 SBKMKMGR_YES=":yes"
 SBKMKMGR_NO=":no"
-SBKMKMGR_OPEN="open"
 SBKMKMGR_CONFIRM_TABS_COUNT=15
+SBKMKMGR_STACK=($SBKMKMGR_ROOT_PATH)
+SBKMKMGR_FILTER="$SBKMKMGR_GROUP_OR_URL"
+SBKMKMGR_NAME_REGEX="[ \\\/]"
 
-sbkmkmgr_show() {
-	ls "$1" -lAF --group-directories-first | grep "$2" | awk '{printf "%s\n", $NF}' | dmenu -p "$3"
+
+sbkmkmgr_get_path() {
+	printf "%s" ${SBKMKMGR_STACK[@]}
+}
+
+sbkmkmgr_pop() {
+	[ ${#SBKMKMGR_STACK[*]} -gt 1 ] && unset SBKMKMGR_STACK[${#SBKMKMGR_STACK[@]}-1]
+}
+
+sbkmkmgr_push() {
+	SBKMKMGR_STACK+=("$1")
+}
+
+sbkmkmgr_reset_stack() {
+	SBKMKMGR_STACK=($SBKMKMGR_ROOT_PATH)
+}
+
+sbkmkmgr_choose() {
+	ls `sbkmkmgr_get_path` -lAF --group-directories-first | grep "$1" | awk '{printf "%s\n", $NF}' | dmenu -i -p "$2"
 }
 
 sbkmkmgr_confirm() {
 	printf "$SBKMKMGR_NO\n$SBKMKMGR_YES\n" | dmenu -p "$1"
 }
 
-sbkmkmgr_goto() {
-	local path=""
-	while true; do
-	  local d=`sbkmkmgr_show $SBKMKMGR_PATH$path $1 $path`
-		if [ "$d" = "$SBKMKMGR_HERE" ]; then
-			break
-		elif [ -z "$d" ]; then
-			return 5
-		fi
-		path+="$d"
-		[ -f "$SBKMKMGR_PATH$path" ] && break 
-	done
-	echo "$SBKMKMGR_PATH$path"
-}
-
 sbkmkmgr_message() {
-	echo "ok" | dmenu -p "$1"
+	printf "ok" | dmenu -p "$1"
+	return 0
 }
 
-sbkmkmgr_validate_path() {
-	if [ -d "$1" ]; then
-		sbkmkmgr_message "Group exists with that name, $1"
-		exit 21
-	elif [ -f "$1" ]; then
-		sbkmkmgr_message "URL exists with that name, $1"
-		exit 17
-	fi
+sbkmkmgr_validate() {
+	[[ "$1" =~ $SBKMKMGR_NAME_REGEX ]] && sbkmkmgr_message "Name can't contain spaces or slashes" && return 5
+	local path=`sbkmkmgr_get_path`"$1"
+	[ -d "$path" ] && sbkmkmgr_message "Group exists, $2" && return 21
+	[ -f "$path" ] && sbkmkmgr_message "URL exists, $2" && return 17
+	return 0
 }
 
 sbkmkmgr_input() {
@@ -54,53 +64,73 @@ sbkmkmgr_input() {
 }
 
 sbkmkmgr_add_group() {
-	local path=`sbkmkmgr_goto $SBKMKMGR_D`
-	[ -z "$path" ] && exit 22
 	local name=`sbkmkmgr_input "Group Name:"`
-	path+="$name"
-	sbkmkmgr_validate_path "$path"
-	mkdir "$path"
+	local path=`sbkmkmgr_get_path`"$name"
+	sbkmkmgr_validate "$name" && mkdir "$path" && return 0
 }
 
 sbkmkmgr_add_url() {
-	local path=`sbkmkmgr_goto $SBKMKMGR_D`
-	[ -z "$path" ] && exit 22
+	local path=`sbkmkmgr_get_path`
 	local name=`sbkmkmgr_input "Name:"`
 	local url=`sbkmkmgr_input "URL:"`
 	path+="$name"
-	sbkmkmgr_validate_path "$path"
-	printf "$url" > "$path"
+	sbkmkmgr_validate "$name" && printf "$url" > "$path" && return 0
 }
 
 sbkmkmgr_open_url() {
 	local url
-	read -r url < "$1"
+	read -r url < `sbkmkmgr_get_path`
 	[ -z "$url" ] || chromium "$url"
 }
 
 sbkmkmgr_open_group() {
-	local files=`ls "$1" -lAF | grep "$SBKMKMGR_F"`
+	local path=`sbkmkmgr_get_path`
+	local files=`ls "$path" -lAF | grep "$SBKMKMGR_URL"`
+	[ -z "$files" ] && exit 39
 	local count=`echo "$files" | wc -l`
-	[ $count -le 1 ] && [ -z "$files" ] && exit 39
 	if [ $count -ge $SBKMKMGR_CONFIRM_TABS_COUNT ]; then
 		local confirm=`sbkmkmgr_confirm "$1 will open $count tabs"`
-		[ "$confirm" = $SBKMKMGR_NO ] && exit 7
+		[ ! "$confirm" = $SBKMKMGR_YES ] && return 7
 	fi
-	local names=`echo "$files" | awk -v path="$1" '{printf ""path"%s ", $NF}'`
+	local names=`echo "$files" | awk -v path="$path" '{printf ""path"%s ", $NF}'`
 	local urls=`awk 'FNR==1{printf "%s ",$0} {nextfile}' $names`
 	chromium $urls
 }
 
-sbkmkmgr_open() {
-	local path=`sbkmkmgr_goto $SBKMKMGR_D_OR_F`
-	[ -f "$path" ] && sbkmkmgr_open_url "$path"
-	[ -d "$path" ] && sbkmkmgr_open_group "$path"
+sbkmkmgr_remove() {
+	local path=`sbkmkmgr_get_path`
+	local name=`sbkmkmgr_choose $SBKMKMGR_FILTER "choose URL or Group to be removed:"`
+	path="$path$name"
+	[ ! -e "$path" ] && return 2
+	local confirm=`sbkmkmgr_confirm "$path will be removed permanently"`
+	[ ! "$confirm" = $SBKMKMGR_YES ] && return 7
+	rm -r "$path" && return 0
 }
 
-if [ "$2" = "$SBKMKMGR_OPEN" ]; then
-	sbkmkmgr_open
-else
-	CHOICE=`printf "New URL\nNew Group\n" | dmenu -p $SBKMKMGR_PATH`
-	[ "$CHOICE" = "New URL" ] && sbkmkmgr_add_url
-	[ "$CHOICE" = "New Group" ] && sbkmkmgr_add_group
-fi
+sbkmkmgr_copy_url() {
+	local path=`sbkmkmgr_get_path`
+	path+=`sbkmkmgr_choose $SBKMKMGR_URL "choose URL to be copied:"`
+	[ -f "$path" ] && xclip -selection clipboard "$path" && return 0
+}
+
+sbkmkmgr_copy_path() {
+	printf `sbkmkmgr_get_path` | xclip -selection clipboard && return 0
+}
+
+while true; do
+	SBKMKMGR_PATH=`printf "%s" ${SBKMKMGR_STACK[@]:1}`
+	SBKMKMGR_CHOICE=`sbkmkmgr_choose $SBKMKMGR_FILTER $SBKMKMGR_PATH`
+	[ -z "$SBKMKMGR_CHOICE" ] && exit 5
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_BACK" ] && sbkmkmgr_pop && continue
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_GROUP" ] && SBKMKMGR_FILTER=$SBKMKMGR_GROUP && continue
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_URL" ] && SBKMKMGR_FILTER=$SBKMKMGR_URL && continue
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_DEFAULT" ] && SBKMKMGR_FILTER=$SBKMKMGR_GROUP_OR_URL && continue
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_HERE" ] && sbkmkmgr_open_group && exit 0
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_ADD_URL" ] && sbkmkmgr_add_url && continue
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_ADD_GROUP" ] && sbkmkmgr_add_group && continue
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_REMOVE" ] && sbkmkmgr_remove && continue
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_URL" ] && sbkmkmgr_copy_url && exit 0
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_PATH" ] && sbkmkmgr_copy_path && exit 0
+	[ -e "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_push "$SBKMKMGR_CHOICE"
+	[ -f "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_open_url && exit 0
+done
