@@ -1,5 +1,6 @@
 Simple (but powerful) Bookmark Manager
 
 TODO:
-	[] manage git like pass
-	[] add help message
+  [] import bookmarks from chromium
+  [] manage git like pass
+  [] add help message
