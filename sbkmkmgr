@@ -21,6 +21,7 @@ SBKMKMGR_CONFIRM_TABS_COUNT=15
 SBKMKMGR_STACK=($SBKMKMGR_ROOT_PATH)
 SBKMKMGR_FILTER="$SBKMKMGR_GROUP_OR_URL"
 SBKMKMGR_NAME_REGEX="[ \\\/]"
+SBKMKMGR_DMENU_LINES=20
 
 
 sbkmkmgr_get_path() {
@@ -40,7 +41,7 @@ sbkmkmgr_reset_stack() {
 }
 
 sbkmkmgr_choose() {
-	ls `sbkmkmgr_get_path` -lAF --group-directories-first | grep "$1" | awk '{printf "%s\n", $NF}' | dmenu -i -p "$2"
+	ls `sbkmkmgr_get_path` -lAF --group-directories-first | grep "$1" | awk '{printf "%s\n", $NF}' | dmenu -i -p "$2" -l $SBKMKMGR_DMENU_LINES
 }
 
 sbkmkmgr_confirm() {
