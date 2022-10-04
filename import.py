@@ -14,9 +14,7 @@ def is_arabic(string):
 
 
 def sanitize_name(name):
-    sanitized = re.sub(r"[\\\/\s\'\"\.\;\,\:\=\+\!\@\#\$\^\*\(\)\[\]\<\>\{\}\|]", '-', name).split(
-        "?")[0].split("%")[0].split('&')[0].lower()
-    return re.sub(r"-+", '-', sanitized)
+    return re.sub(r"\W+", '-', name.split("?")[0].split("%")[0].split('&')[0].lower()).strip('-')
 
 
 def generate_name_from_url(url):
