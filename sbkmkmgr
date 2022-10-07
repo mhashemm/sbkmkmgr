@@ -18,18 +18,19 @@ SBKMKMGR_AUTO=":auto"
 SBKMKMGR_YES=":yes"
 SBKMKMGR_NO=":no"
 SBKMKMGR_CONFIRM_TABS_COUNT=15
-SBKMKMGR_STACK=($SBKMKMGR_ROOT_PATH)
+SBKMKMGR_STACK=("$SBKMKMGR_ROOT_PATH")
 SBKMKMGR_FILTER="$SBKMKMGR_GROUP_OR_URL"
 SBKMKMGR_NAME_REGEX="[ \\\/]"
 SBKMKMGR_DMENU_LINES=20
+shift 1
 
 
 sbkmkmgr_get_path() {
-	printf "%s" ${SBKMKMGR_STACK[@]}
+	printf "%s" "${SBKMKMGR_STACK[@]}"
 }
 
 sbkmkmgr_pop() {
-	[ ${#SBKMKMGR_STACK[*]} -gt 1 ] && unset SBKMKMGR_STACK[${#SBKMKMGR_STACK[@]}-1]
+	[ ${#SBKMKMGR_STACK[*]} -gt 1 ] && unset "SBKMKMGR_STACK[-1]"
 }
 
 sbkmkmgr_push() {
@@ -37,15 +38,26 @@ sbkmkmgr_push() {
 }
 
 sbkmkmgr_reset_stack() {
-	SBKMKMGR_STACK=($SBKMKMGR_ROOT_PATH)
+	SBKMKMGR_STACK=("$SBKMKMGR_ROOT_PATH")
+}
+
+sbkmkmgr_git(){
+	git -C "$SBKMKMGR_ROOT_PATH" "$@"
+}
+
+sbkmkmgr_commit() {
+	while IFS= read -r LINE; do
+		echo "$LINE"
+	done <<< "$(sbkmkmgr_git status -s)"
 }
 
 sbkmkmgr_choose() {
-	ls `sbkmkmgr_get_path` -lAF --group-directories-first | grep "$1" | awk '{printf "%s\n", $NF}' | dmenu -i -p "$2" -l $SBKMKMGR_DMENU_LINES
+	# shellcheck disable=SC2010
+	ls "$(sbkmkmgr_get_path)" -lAF --group-directories-first | grep "$1" | awk '{printf "%s\n", $NF}' | dmenu -i -p "$2" -l $SBKMKMGR_DMENU_LINES
 }
 
 sbkmkmgr_confirm() {
-	printf "$SBKMKMGR_NO\n$SBKMKMGR_YES\n" | dmenu -p "$1"
+	printf "%s\n%s\n" "$SBKMKMGR_NO" "$SBKMKMGR_YES" | dmenu -p "$1"
 }
 
 sbkmkmgr_message() {
@@ -55,7 +67,8 @@ sbkmkmgr_message() {
 
 sbkmkmgr_validate() {
 	[[ "$1" =~ $SBKMKMGR_NAME_REGEX ]] && sbkmkmgr_message "Name can't contain spaces or slashes" && return 5
-	local path=`sbkmkmgr_get_path`"$1"
+	local path
+	path=$(sbkmkmgr_get_path)"$1"
 	[ -d "$path" ] && sbkmkmgr_message "Group exists, $2" && return 21
 	[ -f "$path" ] && sbkmkmgr_message "URL exists, $2" && return 17
 	return 0
@@ -66,63 +79,88 @@ sbkmkmgr_input() {
 }
 
 sbkmkmgr_add_group() {
-	local name=`sbkmkmgr_input "Group Name:"`
-	local path=`sbkmkmgr_get_path`"$name"
+	local name
+	name=$(sbkmkmgr_input "Group Name:")
+	local path
+	path=$(sbkmkmgr_get_path)"$name"
 	sbkmkmgr_validate "$name" && mkdir "$path" && return 0
 }
 
 sbkmkmgr_add_url() {
-	local path=`sbkmkmgr_get_path`
-	local name=`sbkmkmgr_input "Name ($SBKMKMGR_AUTO generate from URL):"`
-	local url=`sbkmkmgr_input "URL:"`
-	[ "$name" = "$SBKMKMGR_AUTO" ] && name=`printf "$url" | cut -d'/' -f 3- | cut -d'?' -f 1 | tr '/' '-'`
+	local path
+	path=$(sbkmkmgr_get_path)
+	local name
+	name=$(sbkmkmgr_input "Name ($SBKMKMGR_AUTO generate from URL):")
+	local url
+	url=$(sbkmkmgr_input "URL:")
+	[ "$name" = "$SBKMKMGR_AUTO" ] && name=$(printf "%s" "$url" | cut -d'/' -f 3- | cut -d'?' -f 1 | tr '/' '-')
 	path+="$name"
-	sbkmkmgr_validate "$name" && printf "$url" > "$path" && return 0
+	sbkmkmgr_validate "$name" && printf "%s" "$url" > "$path" && return 0
 }
 
 sbkmkmgr_open_url() {
 	local url
-	read -r url < `sbkmkmgr_get_path`
+	read -r url < "$(sbkmkmgr_get_path)"
 	[ -z "$url" ] || chromium "$url"
 }
 
 sbkmkmgr_open_group() {
-	local path=`sbkmkmgr_get_path`
-	local files=`ls "$path" -lAF | grep "$SBKMKMGR_URL"`
+	local path
+	path=$(sbkmkmgr_get_path)
+	local files
+	# shellcheck disable=SC2010
+	files=$(ls "$path" -lAF | grep "$SBKMKMGR_URL")
 	[ -z "$files" ] && exit 39
-	local count=`echo "$files" | wc -l`
-	if [ $count -ge $SBKMKMGR_CONFIRM_TABS_COUNT ]; then
-		local confirm=`sbkmkmgr_confirm "$1 will open $count tabs"`
+	local count
+	count=$(echo "$files" | wc -l)
+	if [ "$count" -ge $SBKMKMGR_CONFIRM_TABS_COUNT ]; then
+		local confirm
+		confirm=$(sbkmkmgr_confirm "${SBKMKMGR_STACK[-1]} will open $count tabs")
 		[ ! "$confirm" = $SBKMKMGR_YES ] && return 7
 	fi
-	local names=`echo "$files" | awk -v path="$path" '{printf ""path"%s ", $NF}'`
-	local urls=`awk 'FNR==1{printf "%s ",$0} {nextfile}' $names`
+	local names
+	names=$(echo "$files" | awk -v path="$path" '{printf ""path"%s ", $NF}')
+	local urls
+	# shellcheck disable=SC2086
+	urls=$(awk 'FNR==1{printf "%s ",$0} {nextfile}' $names)
+	# shellcheck disable=SC2086
 	chromium $urls
 }
 
 sbkmkmgr_remove() {
-	local path=`sbkmkmgr_get_path`
-	local name=`sbkmkmgr_choose $SBKMKMGR_FILTER "choose URL or Group to be removed:"`
+	local path
+	path=$(sbkmkmgr_get_path)
+	local name
+	name=$(sbkmkmgr_choose "$SBKMKMGR_FILTER" "choose URL or Group to be removed:")
 	path="$path$name"
 	[ ! -e "$path" ] && return 2
-	local confirm=`sbkmkmgr_confirm "$path will be removed permanently"`
+	local confirm
+	confirm=$(sbkmkmgr_confirm "$path will be removed permanently")
 	[ ! "$confirm" = $SBKMKMGR_YES ] && return 7
 	rm -r "$path" && return 0
 }
 
 sbkmkmgr_copy_url() {
-	local path=`sbkmkmgr_get_path`
-	path+=`sbkmkmgr_choose $SBKMKMGR_URL "choose URL to be copied:"`
+	local path
+	path=$(sbkmkmgr_get_path)
+	path+=$(sbkmkmgr_choose $SBKMKMGR_URL "choose URL to be copied:")
 	[ -f "$path" ] && xclip -selection clipboard "$path" && return 0
 }
 
 sbkmkmgr_copy_path() {
-	printf `sbkmkmgr_get_path` | xclip -selection clipboard && return 0
+	printf "%s" "$(sbkmkmgr_get_path)" | xclip -selection clipboard && return 0
 }
 
+
+if [ "$1" = "git" ]
+then
+sbkmkmgr_commit
+# shift 1
+# sbkmkmgr_git $@
+else
 while true; do
-	SBKMKMGR_PATH=`printf "%s" ${SBKMKMGR_STACK[@]:1}`
-	SBKMKMGR_CHOICE=`sbkmkmgr_choose $SBKMKMGR_FILTER $SBKMKMGR_PATH`
+	SBKMKMGR_PATH=$(printf "%s" "${SBKMKMGR_STACK[@]:1}")
+	SBKMKMGR_CHOICE=$(sbkmkmgr_choose "$SBKMKMGR_FILTER" "$SBKMKMGR_PATH")
 	[ -z "$SBKMKMGR_CHOICE" ] && exit 5
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_BACK" ] && sbkmkmgr_pop && continue
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_GROUP" ] && SBKMKMGR_FILTER=$SBKMKMGR_GROUP && continue
@@ -135,5 +173,6 @@ while true; do
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_URL" ] && sbkmkmgr_copy_url && exit 0
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_PATH" ] && sbkmkmgr_copy_path && exit 0
 	[ -e "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_push "$SBKMKMGR_CHOICE"
-	[ -f "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_open_url && exit 0
+	[ -f "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_open_url && sbkmkmgr_pop && exit 0
 done
+fi
