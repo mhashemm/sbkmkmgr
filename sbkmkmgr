@@ -17,6 +17,7 @@ SBKMKMGR_ADD_GROUP=":grp"
 SBKMKMGR_AUTO=":auto"
 SBKMKMGR_YES=":yes"
 SBKMKMGR_NO=":no"
+SBKMKMGR_COMMIT=":commit"
 SBKMKMGR_CONFIRM_TABS_COUNT=15
 SBKMKMGR_STACK=("$SBKMKMGR_ROOT_PATH")
 SBKMKMGR_FILTER="$SBKMKMGR_GROUP_OR_URL"
@@ -56,12 +57,12 @@ sbkmkmgr_git_state() {
 }
 
 sbkmkmgr_commit() {
-	sbkmkmgr_git add .
+	sbkmkmgr_git add . > /dev/null
 	local line, state, file
 	while IFS= read -r line; do
 		state=$(sbkmkmgr_git_state "$(printf "%s" "$line" | awk '{print $1}')")
 		file=$(printf "%s" "$line" | awk '{print $2}')
-		sbkmkmgr_git commit -m "$state $file" "$file"
+		sbkmkmgr_git commit -m "$state $file" "$file" > /dev/null
 	done <<< "$(sbkmkmgr_git status -s)"
 }
 
@@ -156,27 +157,30 @@ sbkmkmgr_copy_path() {
 }
 
 
-if [ "$1" = "git" ]
-then
-# sbkmkmgr_commit
+if [ "$1" = "git" ]; then
 shift 1
 sbkmkmgr_git "$@"
 else
 while true; do
-	SBKMKMGR_PATH=$(printf "%s" "${SBKMKMGR_STACK[@]:1}")
-	SBKMKMGR_CHOICE=$(sbkmkmgr_choose "$SBKMKMGR_FILTER" "$SBKMKMGR_PATH")
-	[ -z "$SBKMKMGR_CHOICE" ] && exit 5
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_BACK" ] && sbkmkmgr_pop && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_GROUP" ] && SBKMKMGR_FILTER=$SBKMKMGR_GROUP && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_URL" ] && SBKMKMGR_FILTER=$SBKMKMGR_URL && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_DEFAULT" ] && SBKMKMGR_FILTER=$SBKMKMGR_GROUP_OR_URL && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_HERE" ] && sbkmkmgr_open_group && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_ADD_URL" ] && sbkmkmgr_add_url && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_ADD_GROUP" ] && sbkmkmgr_add_group && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_REMOVE" ] && sbkmkmgr_remove && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_URL" ] && sbkmkmgr_copy_url && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_PATH" ] && sbkmkmgr_copy_path && continue
+SBKMKMGR_PATH=$(printf "%s" "${SBKMKMGR_STACK[@]:1}")
+SBKMKMGR_CHOICE=$(sbkmkmgr_choose "$SBKMKMGR_FILTER" "$SBKMKMGR_PATH")
+[ -z "$SBKMKMGR_CHOICE" ] && exit 5
+case "$SBKMKMGR_CHOICE" in
+"$SBKMKMGR_BACK") sbkmkmgr_pop ;;
+"$SBKMKMGR_FILTER_GROUP") SBKMKMGR_FILTER=$SBKMKMGR_GROUP ;;
+"$SBKMKMGR_FILTER_URL") SBKMKMGR_FILTER=$SBKMKMGR_URL ;;
+"$SBKMKMGR_FILTER_DEFAULT") SBKMKMGR_FILTER=$SBKMKMGR_GROUP_OR_URL ;;
+"$SBKMKMGR_HERE") sbkmkmgr_open_group ;;
+"$SBKMKMGR_ADD_URL") sbkmkmgr_add_url ;;
+"$SBKMKMGR_ADD_GROUP") sbkmkmgr_add_group ;;
+"$SBKMKMGR_REMOVE") sbkmkmgr_remove ;;
+"$SBKMKMGR_COPY_URL") sbkmkmgr_copy_url ;;
+"$SBKMKMGR_COPY_PATH") sbkmkmgr_copy_path ;;
+"$SBKMKMGR_COMMIT") sbkmkmgr_commit ;;
+*)
 	[ -f "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_open_url "$SBKMKMGR_CHOICE" && continue
 	[ -d "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_push "$SBKMKMGR_CHOICE" && continue
+;;
+esac	
 done
 fi

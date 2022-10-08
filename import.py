@@ -9,12 +9,8 @@ with open(BOOKMARK_PATH, 'r') as file:
     bookmarks = json.load(file)['roots']['bookmark_bar']
 
 
-def is_arabic(string):
-    return re.search(r"[\u0600-\u06FF]", string) is not None
-
-
 def sanitize_name(name):
-    return re.sub(r"\W+", '-', name.split("?")[0].split("%")[0].split('&')[0].lower()).strip('-')
+    return re.sub(r"[^a-zA-Z0-9]+", '-', name.split("?")[0].split("%")[0].split('&')[0].lower()).strip('-')
 
 
 def generate_name_from_url(url):
@@ -28,8 +24,8 @@ def create(bkmks, path=''):
             os.makedirs(f"{dest}{new_path}")
             create(bk['children'], new_path)
         elif bk['type'] == 'url':
-            name = generate_name_from_url(bk['url']) if bk['name'].strip(
-            ) == '' or is_arabic(bk['name']) else sanitize_name(bk['name'])
+            name = sanitize_name(bk['name'])
+            name = generate_name_from_url(bk['url']) if name == '' else name
             if os.path.exists(f'{dest}{path}{name}'):
                 name += str(i)
             with open(f'{dest}{path}{name}', 'w') as f:
