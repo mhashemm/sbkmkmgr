@@ -93,19 +93,16 @@ sbkmkmgr_input() {
 }
 
 sbkmkmgr_add_group() {
-	local name
+	local name, path
 	name=$(sbkmkmgr_input "Group Name:")
-	local path
 	path=$(sbkmkmgr_get_path)"$name"
 	sbkmkmgr_validate "$name" && mkdir "$path" && return 0
 }
 
 sbkmkmgr_add_url() {
-	local path
+	local path, name, url
 	path=$(sbkmkmgr_get_path)
-	local name
 	name=$(sbkmkmgr_input "Name ($SBKMKMGR_AUTO generate from URL):")
-	local url
 	url=$(sbkmkmgr_input "URL:")
 	[ "$name" = "$SBKMKMGR_AUTO" ] && name=$(printf "%s" "$url" | sed 's/https\{0,1\}:\/\///' | cut -d '?' -f 1 | cut -d '%' -f 1 | sed -E 's/[^a-zA-Z0-9]+/-/g' | sed -E 's/-+$//')
 	path+="$name"
@@ -119,22 +116,17 @@ sbkmkmgr_open_url() {
 }
 
 sbkmkmgr_open_group() {
-	local path
+	local path, files, count, confirm, names, urls
 	path=$(sbkmkmgr_get_path)
-	local files
 	# shellcheck disable=SC2010
 	files=$(ls "$path" -lAF | grep "$SBKMKMGR_URL")
 	[ -z "$files" ] && exit 39
-	local count
 	count=$(echo "$files" | wc -l)
 	if [ "$count" -ge $SBKMKMGR_CONFIRM_TABS_COUNT ]; then
-		local confirm
 		confirm=$(sbkmkmgr_confirm "${SBKMKMGR_STACK[-1]} will open $count tabs")
 		[ ! "$confirm" = $SBKMKMGR_YES ] && return 7
 	fi
-	local names
 	names=$(echo "$files" | awk -v path="$path" '{printf ""path"%s ", $NF}')
-	local urls
 	# shellcheck disable=SC2086
 	urls=$(awk 'FNR==1{printf "%s ",$0} {nextfile}' $names)
 	# shellcheck disable=SC2086
@@ -142,13 +134,11 @@ sbkmkmgr_open_group() {
 }
 
 sbkmkmgr_remove() {
-	local path
+	local path, name, confirm
 	path=$(sbkmkmgr_get_path)
-	local name
 	name=$(sbkmkmgr_choose "$SBKMKMGR_FILTER" "choose URL or Group to be removed:")
 	path="$path$name"
 	[ ! -e "$path" ] && return 2
-	local confirm
 	confirm=$(sbkmkmgr_confirm "$path will be removed permanently")
 	[ ! "$confirm" = $SBKMKMGR_YES ] && return 7
 	rm -r "$path" && return 0
