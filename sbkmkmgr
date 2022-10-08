@@ -170,7 +170,7 @@ case "$SBKMKMGR_CHOICE" in
 "$SBKMKMGR_FILTER_GROUP") SBKMKMGR_FILTER=$SBKMKMGR_GROUP ;;
 "$SBKMKMGR_FILTER_URL") SBKMKMGR_FILTER=$SBKMKMGR_URL ;;
 "$SBKMKMGR_FILTER_DEFAULT") SBKMKMGR_FILTER=$SBKMKMGR_GROUP_OR_URL ;;
-"$SBKMKMGR_HERE") sbkmkmgr_open_group ;;
+"$SBKMKMGR_HERE") sbkmkmgr_open_group && exit 0 ;;
 "$SBKMKMGR_ADD_URL") sbkmkmgr_add_url ;;
 "$SBKMKMGR_ADD_GROUP") sbkmkmgr_add_group ;;
 "$SBKMKMGR_REMOVE") sbkmkmgr_remove ;;
@@ -178,7 +178,7 @@ case "$SBKMKMGR_CHOICE" in
 "$SBKMKMGR_COPY_PATH") sbkmkmgr_copy_path ;;
 "$SBKMKMGR_COMMIT") sbkmkmgr_commit ;;
 *)
-	[ -f "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_open_url "$SBKMKMGR_CHOICE" && continue
+	[ -f "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_open_url "$SBKMKMGR_CHOICE" && exit 0
 	[ -d "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_push "$SBKMKMGR_CHOICE" && continue
 ;;
 esac	
