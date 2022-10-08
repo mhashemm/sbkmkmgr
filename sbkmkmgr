@@ -41,19 +41,33 @@ sbkmkmgr_reset_stack() {
 	SBKMKMGR_STACK=("$SBKMKMGR_ROOT_PATH")
 }
 
-sbkmkmgr_git(){
+sbkmkmgr_git() {
 	git -C "$SBKMKMGR_ROOT_PATH" "$@"
 }
 
+sbkmkmgr_git_state() {
+	case "$1" in
+		"A") printf "added" ;;
+		"M") printf "modified" ;;
+		"D") printf "deleted" ;;
+		"R") printf "renamed" ;;
+		*) printf "something else" ;;
+	esac 
+}
+
 sbkmkmgr_commit() {
-	while IFS= read -r LINE; do
-		echo "$LINE"
+	sbkmkmgr_git add .
+	local line, state, file
+	while IFS= read -r line; do
+		state=$(sbkmkmgr_git_state "$(printf "%s" "$line" | awk '{print $1}')")
+		file=$(printf "%s" "$line" | awk '{print $2}')
+		sbkmkmgr_git commit -m "$state $file" "$file"
 	done <<< "$(sbkmkmgr_git status -s)"
 }
 
 sbkmkmgr_choose() {
 	# shellcheck disable=SC2010
-	ls "$(sbkmkmgr_get_path)" -lAF --group-directories-first | grep "$1" | awk '{printf "%s\n", $NF}' | dmenu -i -p "$2" -l $SBKMKMGR_DMENU_LINES
+	ls "$(sbkmkmgr_get_path)" -lAF --group-directories-first | grep "$1" | grep -v ".git/" | awk '{printf "%s\n", $NF}' | dmenu -i -p "$2" -l $SBKMKMGR_DMENU_LINES
 }
 
 sbkmkmgr_confirm() {
@@ -61,7 +75,7 @@ sbkmkmgr_confirm() {
 }
 
 sbkmkmgr_message() {
-	printf "ok" | dmenu -p "$1"
+	printf "ok" | dmenu -p "$1" > /dev/null
 	return 0
 }
 
@@ -93,14 +107,14 @@ sbkmkmgr_add_url() {
 	name=$(sbkmkmgr_input "Name ($SBKMKMGR_AUTO generate from URL):")
 	local url
 	url=$(sbkmkmgr_input "URL:")
-	[ "$name" = "$SBKMKMGR_AUTO" ] && name=$(printf "%s" "$url" | cut -d'/' -f 3- | cut -d'?' -f 1 | tr '/' '-')
+	[ "$name" = "$SBKMKMGR_AUTO" ] && name=$(printf "%s" "$url" | sed 's/https\{0,1\}:\/\///' | cut -d '?' -f 1 | cut -d '%' -f 1 | sed -E 's/[^a-zA-Z0-9]+/-/g' | sed -E 's/-+$//')
 	path+="$name"
-	sbkmkmgr_validate "$name" && printf "%s" "$url" > "$path" && return 0
+	sbkmkmgr_validate "$name" && printf "%s" "$url" > "$path" && sbkmkmgr_commit && return 0	
 }
 
 sbkmkmgr_open_url() {
 	local url
-	read -r url < "$(sbkmkmgr_get_path)"
+	read -r url < "$(sbkmkmgr_get_path)""$1"
 	[ -z "$url" ] || chromium "$url"
 }
 
@@ -154,9 +168,9 @@ sbkmkmgr_copy_path() {
 
 if [ "$1" = "git" ]
 then
-sbkmkmgr_commit
-# shift 1
-# sbkmkmgr_git $@
+# sbkmkmgr_commit
+shift 1
+sbkmkmgr_git "$@"
 else
 while true; do
 	SBKMKMGR_PATH=$(printf "%s" "${SBKMKMGR_STACK[@]:1}")
@@ -166,13 +180,13 @@ while true; do
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_GROUP" ] && SBKMKMGR_FILTER=$SBKMKMGR_GROUP && continue
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_URL" ] && SBKMKMGR_FILTER=$SBKMKMGR_URL && continue
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_FILTER_DEFAULT" ] && SBKMKMGR_FILTER=$SBKMKMGR_GROUP_OR_URL && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_HERE" ] && sbkmkmgr_open_group && exit 0
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_HERE" ] && sbkmkmgr_open_group && continue
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_ADD_URL" ] && sbkmkmgr_add_url && continue
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_ADD_GROUP" ] && sbkmkmgr_add_group && continue
 	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_REMOVE" ] && sbkmkmgr_remove && continue
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_URL" ] && sbkmkmgr_copy_url && exit 0
-	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_PATH" ] && sbkmkmgr_copy_path && exit 0
-	[ -e "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_push "$SBKMKMGR_CHOICE"
-	[ -f "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_open_url && sbkmkmgr_pop && exit 0
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_URL" ] && sbkmkmgr_copy_url && continue
+	[ "$SBKMKMGR_CHOICE" = "$SBKMKMGR_COPY_PATH" ] && sbkmkmgr_copy_path && continue
+	[ -f "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_open_url "$SBKMKMGR_CHOICE" && continue
+	[ -d "$SBKMKMGR_ROOT_PATH$SBKMKMGR_PATH$SBKMKMGR_CHOICE" ] && sbkmkmgr_push "$SBKMKMGR_CHOICE" && continue
 done
 fi
