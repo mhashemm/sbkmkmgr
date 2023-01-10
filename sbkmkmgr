@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 SBKMKMGR_ROOT_PATH=$1
 SBKMKMGR_GROUP="^d"
@@ -6,6 +6,7 @@ SBKMKMGR_URL="^-"
 SBKMKMGR_GROUP_OR_URL="^[d-]"
 SBKMKMGR_HERE=":."
 SBKMKMGR_BACK=":<"
+SBKMKMGR_ALL=":>"
 SBKMKMGR_FILTER_GROUP=":fg"
 SBKMKMGR_FILTER_URL=":fu"
 SBKMKMGR_FILTER_DEFAULT=":fd"
@@ -23,6 +24,7 @@ SBKMKMGR_STACK=("$SBKMKMGR_ROOT_PATH")
 SBKMKMGR_FILTER="$SBKMKMGR_GROUP_OR_URL"
 SBKMKMGR_NAME_REGEX="[ \\\/]"
 SBKMKMGR_DMENU_LINES=20
+SBKMKMGR_CHOICE_ALL=0
 shift 1
 
 
@@ -31,7 +33,11 @@ sbkmkmgr_get_path() {
 }
 
 sbkmkmgr_pop() {
-	[ ${#SBKMKMGR_STACK[*]} -gt 1 ] && unset "SBKMKMGR_STACK[-1]"
+	if [ "$SBKMKMGR_CHOICE_ALL" -eq 1 ]; then
+		SBKMKMGR_CHOICE_ALL=0
+	else
+		[ ${#SBKMKMGR_STACK[*]} -gt 1 ] && unset "SBKMKMGR_STACK[-1]"
+	fi
 }
 
 sbkmkmgr_push() {
@@ -58,7 +64,9 @@ sbkmkmgr_git_state() {
 
 sbkmkmgr_commit() {
 	sbkmkmgr_git add . > /dev/null
-	local line, state, file
+	local line
+	local state
+	local file
 	while IFS= read -r line; do
 		state=$(sbkmkmgr_git_state "$(printf "%s" "$line" | awk '{print $1}')")
 		file=$(printf "%s" "$line" | awk '{print $2}')
@@ -67,8 +75,11 @@ sbkmkmgr_commit() {
 }
 
 sbkmkmgr_choose() {
-	# shellcheck disable=SC2010
-	ls "$(sbkmkmgr_get_path)" -lAF --group-directories-first | grep "$1" | grep -v ".git/" | awk '{printf "%s\n", $NF}' | dmenu -i -p "$2" -l $SBKMKMGR_DMENU_LINES
+	if [ "$SBKMKMGR_CHOICE_ALL" -eq 1 ]; then
+		find "$(sbkmkmgr_get_path)" -mindepth 1 ! -path "*.git*" -printf "%P\n" | dmenu -i -p "$2" -l $SBKMKMGR_DMENU_LINES
+	else
+		ls "$(sbkmkmgr_get_path)" -lAF --group-directories-first | grep "$1" | grep -v ".git/" | awk '{printf "%s\n", $NF}' | dmenu -i -p "$2" -l $SBKMKMGR_DMENU_LINES
+	fi
 }
 
 sbkmkmgr_confirm() {
@@ -94,14 +105,17 @@ sbkmkmgr_input() {
 }
 
 sbkmkmgr_add_group() {
-	local name, path
+	local name
+	local path
 	name=$(sbkmkmgr_input "Group Name:")
 	path=$(sbkmkmgr_get_path)"$name"
 	sbkmkmgr_validate "$name" && mkdir "$path" && return 0
 }
 
 sbkmkmgr_add_url() {
-	local path, name, url
+	local path
+	local name
+	local url
 	path=$(sbkmkmgr_get_path)
 	name=$(sbkmkmgr_input "Name ($SBKMKMGR_AUTO generate from URL):")
 	url=$(sbkmkmgr_input "URL:")
@@ -117,10 +131,18 @@ sbkmkmgr_open_url() {
 }
 
 sbkmkmgr_open_group() {
-	local path, files, count, confirm, names, urls
+	local path
+	local files
+	local count
+	local confirm
+	local names
+	local urls
 	path=$(sbkmkmgr_get_path)
-	# shellcheck disable=SC2010
-	files=$(ls "$path" -lAF | grep "$SBKMKMGR_URL")
+	if [ "$SBKMKMGR_CHOICE_ALL" -eq 1 ]; then
+		files=$(find "$(sbkmkmgr_get_path)" -mindepth 1 -type f ! -path "*.git*" -printf "%P\n")
+	else
+		files=$(ls "$path" -lAF | grep "$SBKMKMGR_URL")
+	fi
 	[ -z "$files" ] && exit 39
 	count=$(echo "$files" | wc -l)
 	if [ "$count" -ge $SBKMKMGR_CONFIRM_TABS_COUNT ]; then
@@ -128,14 +150,14 @@ sbkmkmgr_open_group() {
 		[ ! "$confirm" = $SBKMKMGR_YES ] && return 7
 	fi
 	names=$(echo "$files" | awk -v path="$path" '{printf ""path"%s ", $NF}')
-	# shellcheck disable=SC2086
 	urls=$(awk 'FNR==1{printf "%s ",$0} {nextfile}' $names)
-	# shellcheck disable=SC2086
 	chromium $urls
 }
 
 sbkmkmgr_remove() {
-	local path, name, confirm
+	local path
+	local name
+	local confirm
 	path=$(sbkmkmgr_get_path)
 	name=$(sbkmkmgr_choose "$SBKMKMGR_FILTER" "choose URL or Group to be removed:")
 	path="$path$name"
@@ -167,6 +189,7 @@ SBKMKMGR_CHOICE=$(sbkmkmgr_choose "$SBKMKMGR_FILTER" "$SBKMKMGR_PATH")
 [ -z "$SBKMKMGR_CHOICE" ] && exit 5
 case "$SBKMKMGR_CHOICE" in
 "$SBKMKMGR_BACK") sbkmkmgr_pop ;;
+"$SBKMKMGR_ALL") SBKMKMGR_CHOICE_ALL=1 ;;
 "$SBKMKMGR_FILTER_GROUP") SBKMKMGR_FILTER=$SBKMKMGR_GROUP ;;
 "$SBKMKMGR_FILTER_URL") SBKMKMGR_FILTER=$SBKMKMGR_URL ;;
 "$SBKMKMGR_FILTER_DEFAULT") SBKMKMGR_FILTER=$SBKMKMGR_GROUP_OR_URL ;;
