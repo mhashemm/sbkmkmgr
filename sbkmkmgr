@@ -113,6 +113,7 @@ sbkmkmgr_add_group() {
 	local name
 	local path
 	name=$(sbkmkmgr_input "Group Name:")
+	[[ -z "$name" ]] && return 61
 	path=$(sbkmkmgr_get_path)"$name"
 	sbkmkmgr_validate "$name" && mkdir "$path" && return 0
 }
@@ -123,7 +124,9 @@ sbkmkmgr_add_url() {
 	local url
 	path=$(sbkmkmgr_get_path)
 	name=$(sbkmkmgr_input "Name ($SBKMKMGR_AUTO generate from URL):")
+	[[ -z "$name" ]] && return 61
 	url=$(sbkmkmgr_input "URL:")
+	[[ -z "$url" ]] && return 61
 	[ "$name" = "$SBKMKMGR_AUTO" ] && name=$(printf "%s" "$url" | sed 's/https\{0,1\}:\/\///' | cut -d '?' -f 1 | cut -d '%' -f 1 | sed -E 's/[^a-zA-Z0-9]+/-/g' | sed -E 's/-+$//')
 	path+="$name"
 	sbkmkmgr_validate "$name" && printf "%s" "$url" > "$path" && sbkmkmgr_commit && return 0	
