@@ -1,5 +1,8 @@
 Simple (but powerful) Bookmark Manager
 
+i recommend to add the fuzzymatch patch to your dmenu
+https://tools.suckless.org/dmenu/patches/fuzzymatch/
+
 TODO:
   [x] import bookmarks from chromium
   [x] manage git like pass
