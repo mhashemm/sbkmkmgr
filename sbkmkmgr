@@ -23,7 +23,7 @@ SBKMKMGR_HOME=":/"
 SBKMKMGR_CONFIRM_TABS_COUNT=15
 SBKMKMGR_STACK=("$SBKMKMGR_ROOT_PATH")
 SBKMKMGR_FILTER="$SBKMKMGR_GROUP_OR_URL"
-SBKMKMGR_NAME_REGEX="[ \\\/]"
+SBKMKMGR_NAME_REGEX="[ \\\/:]"
 SBKMKMGR_DMENU_LINES=20
 SBKMKMGR_CHOICE_ALL=0
 shift 1
@@ -97,7 +97,7 @@ sbkmkmgr_message() {
 }
 
 sbkmkmgr_validate() {
-	[[ "$1" =~ $SBKMKMGR_NAME_REGEX ]] && sbkmkmgr_message "Name can't contain spaces or slashes" && return 5
+	[[ "$1" =~ $SBKMKMGR_NAME_REGEX ]] && sbkmkmgr_message "Name can't contain spaces or slashes or colons" && return 5
 	local path
 	path=$(sbkmkmgr_get_path)"$1"
 	[ -d "$path" ] && sbkmkmgr_message "Group exists, $2" && return 21
